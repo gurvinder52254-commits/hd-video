@@ -41,18 +41,22 @@ export function Dashboard() {
         showStatus('error', 'Please enter a YouTube URL!');
         return;
       }
-      await addVideo(
-        formData.title,
-        formData.url,
-        uploadMode === 'file',
-        files.video,
-        formData.description,
-        formData.duration
-      );
-      setIsAdding(false);
-      showStatus('success', uploadMode === 'file' ? 'Video saved to store!' : 'Video link added!');
+      try {
+        await addVideo(
+          formData.title,
+          formData.url,
+          uploadMode === 'file',
+          files.video,
+          formData.description,
+          formData.duration
+        );
+        setIsAdding(false);
+        showStatus('success', uploadMode === 'file' ? 'Video saved to store!' : 'Video link added!');
+        resetForm();
+      } catch (err) {
+        showStatus('error', err instanceof Error ? err.message : 'Failed to upload video');
+      }
     }
-    resetForm();
   };
 
   const resetForm = () => {
