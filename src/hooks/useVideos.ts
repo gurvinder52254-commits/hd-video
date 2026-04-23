@@ -39,15 +39,14 @@ export function useVideos() {
     load();
   }, []);
 
-  // Internal helper to save all state to the server
   const saveStateToServer = async (newVideos: Video[], newFeaturedUrl: string) => {
     try {
       await fetch('/api/library', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          videos: newVideos, 
-          featuredUrl: newFeaturedUrl 
+        body: JSON.stringify({
+          videos: newVideos,
+          featuredUrl: newFeaturedUrl
         })
       });
     } catch (err) {
@@ -92,7 +91,7 @@ export function useVideos() {
   };
 
   const addVideo = async (
-    title: string, videoUrl: string, 
+    title: string, videoUrl: string,
     isLocal: boolean, videoFile?: File,
     description?: string, duration?: string
   ) => {
