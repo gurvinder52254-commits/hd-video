@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Film, Home } from 'lucide-react';
+import { Film, Home, LayoutDashboard } from 'lucide-react';
 
 export function Navbar() {
   return (
@@ -16,6 +16,10 @@ export function Navbar() {
           <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
             <Home size={18} />
             <span>Home</span>
+          </NavLink>
+          <NavLink to="/gurvindersingh" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <LayoutDashboard size={18} />
+            <span>Dashboard</span>
           </NavLink>
         </div>
       </div>
