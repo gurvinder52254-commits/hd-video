@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const FEATURED_KEY = 'featured_video_url';
+
 
 export type Video = {
   id: string;
@@ -8,7 +8,7 @@ export type Video = {
   description?: string;
   duration?: string;
   url: string;
-  thumbnail: string;
+  thumbnail?: string;
   createdAt: number;
   isLocal: boolean;
   videoFilename?: string;
@@ -20,16 +20,16 @@ export function useVideos() {
   const [featuredUrl, setFeaturedUrl] = useState<string>('https://www.youtube.com/embed/nO_iH-m29pY');
   const [loading, setLoading] = useState(true);
 
-  // Load videos from library.json (stored in public/videoStore/)
+  // Load videos and featuredUrl from library.json (stored in public/videoStore/)
   useEffect(() => {
     const load = async () => {
-      const storedFeatured = localStorage.getItem(FEATURED_KEY);
-      if (storedFeatured) setFeaturedUrl(storedFeatured);
-
       try {
         const res = await fetch('/api/library');
         const data = await res.json();
         setVideos(data.videos || []);
+        if (data.featuredUrl) {
+          setFeaturedUrl(data.featuredUrl);
+        }
       } catch (err) {
         console.error('Failed to load library:', err);
       }
@@ -39,21 +39,29 @@ export function useVideos() {
     load();
   }, []);
 
-  // Save video list to library.json
-  const saveLibrary = async (newVideos: Video[]) => {
-    setVideos(newVideos);
+  // Internal helper to save all state to the server
+  const saveStateToServer = async (newVideos: Video[], newFeaturedUrl: string) => {
     try {
       await fetch('/api/library', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ videos: newVideos })
+        body: JSON.stringify({ 
+          videos: newVideos, 
+          featuredUrl: newFeaturedUrl 
+        })
       });
     } catch (err) {
       console.error('Failed to save library:', err);
     }
   };
 
-  const updateFeaturedUrl = (url: string) => {
+  // Save video list to library.json
+  const saveLibrary = async (newVideos: Video[]) => {
+    setVideos(newVideos);
+    await saveStateToServer(newVideos, featuredUrl);
+  };
+
+  const updateFeaturedUrl = async (url: string) => {
     // Convert watch URL to embed URL if needed
     let embedUrl = url;
     if (url.includes('youtu.be/')) {
@@ -64,8 +72,8 @@ export function useVideos() {
       embedUrl = `https://www.youtube.com/embed/${id}`;
     }
 
-    localStorage.setItem(FEATURED_KEY, embedUrl);
     setFeaturedUrl(embedUrl);
+    await saveStateToServer(videos, embedUrl);
   };
 
   // Upload a single file to the videoStore folder
@@ -84,28 +92,19 @@ export function useVideos() {
   };
 
   const addVideo = async (
-    title: string, videoUrl: string, thumbnailUrl: string,
-    isLocal: boolean, videoFile?: File, thumbFile?: File,
+    title: string, videoUrl: string, 
+    isLocal: boolean, videoFile?: File,
     description?: string, duration?: string
   ) => {
     const id = Math.random().toString(36).substr(2, 9);
     let finalUrl = videoUrl;
-    let finalThumb = thumbnailUrl;
     let videoFilename = '';
-    let thumbFilename = '';
 
     if (isLocal && videoFile) {
       // Upload video file → saved to public/videoStore/videos/
       const videoResult = await uploadFile(videoFile, id, 'video');
       finalUrl = videoResult.url;
       videoFilename = videoResult.filename;
-
-      // Upload thumbnail → saved to public/videoStore/thumbnails/
-      if (thumbFile) {
-        const thumbResult = await uploadFile(thumbFile, id, 'thumbnail');
-        finalThumb = thumbResult.url;
-        thumbFilename = thumbResult.filename;
-      }
     } else if (!isLocal) {
       // Convert YouTube URL to embed format
       if (finalUrl.includes('youtu.be/')) {
@@ -123,11 +122,9 @@ export function useVideos() {
       description,
       duration: duration || '0:00',
       url: finalUrl,
-      thumbnail: finalThumb,
       createdAt: Date.now(),
       isLocal,
-      videoFilename,
-      thumbFilename
+      videoFilename
     };
 
     await saveLibrary([newVideo, ...videos]);

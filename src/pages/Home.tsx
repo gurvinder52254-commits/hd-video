@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useVideos } from '../hooks/useVideos';
 import type { Video } from '../hooks/useVideos';
 import { VideoCard } from '../components/VideoCard';

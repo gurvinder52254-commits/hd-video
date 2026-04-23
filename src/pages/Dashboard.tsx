@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useVideos } from '../hooks/useVideos';
 import type { Video } from '../hooks/useVideos';
-import { Plus, Edit2, Trash2, X, Check, Upload, Link as LinkIcon, FileVideo, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Check, Link as LinkIcon, FileVideo } from 'lucide-react';
 
 export function Dashboard() {
   const { videos, addVideo, updateVideoMetadata, removeVideo, featuredUrl, updateFeaturedUrl, loading } = useVideos();
@@ -19,14 +19,12 @@ export function Dashboard() {
     title: '',
     description: '',
     duration: '',
-    url: '',
-    thumbnail: ''
+    url: ''
   });
 
-  const [files, setFiles] = useState<{ video?: File; thumb?: File }>({});
+  const [files, setFiles] = useState<{ video?: File }>({});
 
   const videoInputRef = useRef<HTMLInputElement>(null);
-  const thumbInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,10 +44,8 @@ export function Dashboard() {
       await addVideo(
         formData.title,
         formData.url,
-        formData.thumbnail,
         uploadMode === 'file',
         files.video,
-        files.thumb,
         formData.description,
         formData.duration
       );
@@ -60,7 +56,7 @@ export function Dashboard() {
   };
 
   const resetForm = () => {
-    setFormData({ title: '', description: '', duration: '', url: '', thumbnail: '' });
+    setFormData({ title: '', description: '', duration: '', url: '' });
     setFiles({});
     setEditingId(null);
     setIsAdding(false);
@@ -72,8 +68,7 @@ export function Dashboard() {
       title: video.title,
       description: video.description || '',
       duration: video.duration || '',
-      url: video.url,
-      thumbnail: video.thumbnail
+      url: video.url
     });
     setIsAdding(true);
   };
@@ -216,17 +211,7 @@ export function Dashboard() {
                   value={formData.url}
                   onChange={e => {
                     const url = e.target.value;
-                    let thumb = '';
-                    try {
-                      if (url.includes('youtu.be/')) {
-                        const id = url.split('/').pop()?.split('?')[0];
-                        thumb = `https://img.youtube.com/vi/${id}/maxresdefault.jpg`;
-                      } else if (url.includes('watch?v=')) {
-                        const id = new URLSearchParams(new URL(url).search).get('v');
-                        thumb = `https://img.youtube.com/vi/${id}/maxresdefault.jpg`;
-                      }
-                    } catch { /* invalid url, ignore */ }
-                    setFormData({ ...formData, url, thumbnail: thumb || formData.thumbnail });
+                    setFormData({ ...formData, url });
                   }}
                   placeholder="https://www.youtube.com/watch?v=..."
                   required
@@ -236,7 +221,7 @@ export function Dashboard() {
 
             {/* File upload inputs */}
             {uploadMode === 'file' && !editingId && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div className="input-group">
                   <label className="input-label" style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Video File</label>
                   <div
@@ -266,30 +251,6 @@ export function Dashboard() {
                     />
                   </div>
                 </div>
-                <div className="input-group">
-                  <label className="input-label" style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Thumbnail Image</label>
-                  <div
-                    className="glass"
-                    style={{
-                      padding: '2rem',
-                      textAlign: 'center',
-                      cursor: 'pointer',
-                      border: files.thumb ? '2px solid var(--primary)' : '2px dashed var(--border)',
-                      background: files.thumb ? 'var(--primary-light)' : 'white'
-                    }}
-                    onClick={() => thumbInputRef.current?.click()}
-                  >
-                    <ImageIcon size={32} style={{ marginBottom: '0.5rem', color: 'var(--primary)' }} />
-                    <p style={{ fontSize: '0.8rem' }}>{files.thumb ? files.thumb.name : 'Select Image'}</p>
-                    <input
-                      ref={thumbInputRef}
-                      type="file"
-                      accept="image/*"
-                      hidden
-                      onChange={e => setFiles({ ...files, thumb: e.target.files?.[0] })}
-                    />
-                  </div>
-                </div>
               </div>
             )}
 
@@ -310,7 +271,6 @@ export function Dashboard() {
         <table className="video-list-table">
           <thead>
             <tr>
-              <th>Thumbnail</th>
               <th>Title</th>
               <th>Source</th>
               <th>Actions</th>
@@ -319,16 +279,13 @@ export function Dashboard() {
           <tbody>
             {videos.length === 0 && (
               <tr>
-                <td colSpan={4} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                <td colSpan={3} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                   No videos yet. Click "Add New Video" to get started.
                 </td>
               </tr>
             )}
             {videos.map(video => (
               <tr key={video.id}>
-                <td>
-                  <img src={video.thumbnail} alt="" style={{ width: '80px', height: '45px', objectFit: 'cover', borderRadius: '4px' }} />
-                </td>
                 <td style={{ fontWeight: 500 }}>{video.title}</td>
                 <td>
                   <span style={{
