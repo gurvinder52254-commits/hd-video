@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { storeFile, getFile, deleteFile } from './storage';
 
-
+const VIDEOS_METADATA_KEY = 'videohub_videos';
+const FEATURED_KEY = 'featured_video_url';
 
 export type Video = {
   id: string;
@@ -11,8 +13,6 @@ export type Video = {
   thumbnail?: string;
   createdAt: number;
   isLocal: boolean;
-  videoFilename?: string;
-  thumbFilename?: string;
 };
 
 export function useVideos() {
@@ -20,15 +20,30 @@ export function useVideos() {
   const [featuredUrl, setFeaturedUrl] = useState<string>('https://www.youtube.com/embed/nO_iH-m29pY');
   const [loading, setLoading] = useState(true);
 
-  // Load videos and featuredUrl from library.json (stored in public/videoStore/)
+  // Load videos and featuredUrl from browser storage (IndexedDB + localStorage)
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch('/api/library');
-        const data = await res.json();
-        setVideos(data.videos || []);
-        if (data.featuredUrl) {
-          setFeaturedUrl(data.featuredUrl);
+        // Load Featured URL from localStorage
+        const storedFeatured = localStorage.getItem(FEATURED_KEY);
+        if (storedFeatured) setFeaturedUrl(storedFeatured);
+
+        // Load Metadata from localStorage
+        const storedMetadata = localStorage.getItem(VIDEOS_METADATA_KEY);
+        if (storedMetadata) {
+          const metadata: Video[] = JSON.parse(storedMetadata);
+          
+          // Restore Blob URLs for local videos from IndexedDB
+          const restoredVideos = await Promise.all(metadata.map(async (v) => {
+            if (v.isLocal) {
+              const blob = await getFile(v.id);
+              if (blob) {
+                return { ...v, url: URL.createObjectURL(blob) };
+              }
+            }
+            return v;
+          }));
+          setVideos(restoredVideos);
         }
       } catch (err) {
         console.error('Failed to load library:', err);
@@ -39,29 +54,23 @@ export function useVideos() {
     load();
   }, []);
 
-  const saveStateToServer = async (newVideos: Video[], newFeaturedUrl: string) => {
+  // Internal helper to save all metadata to localStorage
+  const saveMetadataToLocalStorage = (newVideos: Video[], newFeaturedUrl: string) => {
     try {
-      await fetch('/api/library', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          videos: newVideos,
-          featuredUrl: newFeaturedUrl
-        })
-      });
+      // We only save metadata, not the temporary Blob URLs
+      const metadataToSave = newVideos.map(v => ({
+        ...v,
+        url: v.isLocal ? '' : v.url // Blob URLs are temporary, clear them for storage
+      }));
+      
+      localStorage.setItem(VIDEOS_METADATA_KEY, JSON.stringify(metadataToSave));
+      localStorage.setItem(FEATURED_KEY, newFeaturedUrl);
     } catch (err) {
-      console.error('Failed to save library:', err);
+      console.error('Failed to save to localStorage:', err);
     }
   };
 
-  // Save video list to library.json
-  const saveLibrary = async (newVideos: Video[]) => {
-    setVideos(newVideos);
-    await saveStateToServer(newVideos, featuredUrl);
-  };
-
-  const updateFeaturedUrl = async (url: string) => {
-    // Convert watch URL to embed URL if needed
+  const updateFeaturedUrl = (url: string) => {
     let embedUrl = url;
     if (url.includes('youtu.be/')) {
       const id = url.split('/').pop()?.split('?')[0];
@@ -72,22 +81,7 @@ export function useVideos() {
     }
 
     setFeaturedUrl(embedUrl);
-    await saveStateToServer(videos, embedUrl);
-  };
-
-  // Upload a single file to the videoStore folder
-  const uploadFile = async (file: File, id: string, type: 'video' | 'thumbnail'): Promise<{ url: string; filename: string }> => {
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      headers: {
-        'Content-Type': file.type,
-        'X-Filename': file.name,
-        'X-File-Id': id,
-        'X-File-Type': type
-      },
-      body: file
-    });
-    return res.json();
+    saveMetadataToLocalStorage(videos, embedUrl);
   };
 
   const addVideo = async (
@@ -97,15 +91,13 @@ export function useVideos() {
   ) => {
     const id = Math.random().toString(36).substr(2, 9);
     let finalUrl = videoUrl;
-    let videoFilename = '';
 
     if (isLocal && videoFile) {
-      // Upload video file → saved to public/videoStore/videos/
-      const videoResult = await uploadFile(videoFile, id, 'video');
-      finalUrl = videoResult.url;
-      videoFilename = videoResult.filename;
+      // Store the actual file in IndexedDB
+      await storeFile(id, videoFile);
+      // Create a temporary URL for the current session
+      finalUrl = URL.createObjectURL(videoFile);
     } else if (!isLocal) {
-      // Convert YouTube URL to embed format
       if (finalUrl.includes('youtu.be/')) {
         const vid = finalUrl.split('/').pop()?.split('?')[0];
         finalUrl = `https://www.youtube.com/embed/${vid}`;
@@ -122,38 +114,29 @@ export function useVideos() {
       duration: duration || '0:00',
       url: finalUrl,
       createdAt: Date.now(),
-      isLocal,
-      videoFilename
+      isLocal
     };
 
-    await saveLibrary([newVideo, ...videos]);
+    const updatedVideos = [newVideo, ...videos];
+    setVideos(updatedVideos);
+    saveMetadataToLocalStorage(updatedVideos, featuredUrl);
     return id;
   };
 
-  const updateVideoMetadata = async (id: string, updates: Partial<Video>) => {
+  const updateVideoMetadata = (id: string, updates: Partial<Video>) => {
     const newVideos = videos.map(v => v.id === id ? { ...v, ...updates } : v);
-    await saveLibrary(newVideos);
+    setVideos(newVideos);
+    saveMetadataToLocalStorage(newVideos, featuredUrl);
   };
 
   const removeVideo = async (id: string) => {
     const video = videos.find(v => v.id === id);
     if (video?.isLocal) {
-      // Delete actual files from videoStore folder
-      try {
-        await fetch('/api/delete-video', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            videoFilename: video.videoFilename,
-            thumbFilename: video.thumbFilename
-          })
-        });
-      } catch (err) {
-        console.error('Failed to delete files:', err);
-      }
+      await deleteFile(id);
     }
     const filtered = videos.filter(v => v.id !== id);
-    await saveLibrary(filtered);
+    setVideos(filtered);
+    saveMetadataToLocalStorage(filtered, featuredUrl);
   };
 
   return { videos, addVideo, updateVideoMetadata, removeVideo, featuredUrl, updateFeaturedUrl, loading };
