@@ -23,7 +23,6 @@ export function Home() {
 
   const currentVideo = selectedVideo || videos[0] || null;
 
-  // Pagination logic
   const totalPages = Math.ceil(videos.length / VIDEOS_PER_PAGE);
   const indexOfLastVideo = currentPage * VIDEOS_PER_PAGE;
   const indexOfFirstVideo = indexOfLastVideo - VIDEOS_PER_PAGE;
@@ -35,7 +34,7 @@ export function Home() {
   };
 
   return (
-    <div className="container" 
+    <div className="container"
       style={{ paddingTop: '2rem', paddingBottom: '2rem' }}
       onClick={() => !hasInteracted && setHasInteracted(true)}
     >
