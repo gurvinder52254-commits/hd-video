@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'fs'
 import path from 'path'
+import type { IncomingMessage } from 'http'
 
 export default defineConfig({
   plugins: [
@@ -18,13 +19,13 @@ export default defineConfig({
         fs.mkdirSync(VIDEOS_DIR, { recursive: true });
         fs.mkdirSync(THUMBS_DIR, { recursive: true });
         if (!fs.existsSync(LIBRARY_FILE)) {
-          fs.writeFileSync(LIBRARY_FILE, JSON.stringify({ videos: [] }, null, 2));
+          fs.writeFileSync(LIBRARY_FILE, JSON.stringify({ videos: [], featuredUrl: 'https://www.youtube.com/embed/nO_iH-m29pY' }, null, 2));
         }
 
         // Helper: read full request body as Buffer
-        const readBody = (req) => {
+        const readBody = (req: IncomingMessage): Promise<Buffer> => {
           return new Promise((resolve, reject) => {
-            const chunks = [];
+            const chunks: any[] = [];
             req.on('data', (chunk) => chunks.push(chunk));
             req.on('end', () => resolve(Buffer.concat(chunks)));
             req.on('error', reject);
@@ -37,9 +38,9 @@ export default defineConfig({
           // ─── Upload a file ─────────────────────────────────────────
           if (url === '/api/upload' && req.method === 'POST') {
             try {
-              const filename = req.headers['x-filename'];
-              const fileId = req.headers['x-file-id'];
-              const fileType = req.headers['x-file-type']; // 'video' or 'thumbnail'
+              const filename = req.headers['x-filename'] as string || '';
+              const fileId = req.headers['x-file-id'] as string || '';
+              const fileType = req.headers['x-file-type'] as string || ''; // 'video' or 'thumbnail'
 
               const dir = fileType === 'thumbnail' ? THUMBS_DIR : VIDEOS_DIR;
               const ext = path.extname(filename);
@@ -47,7 +48,7 @@ export default defineConfig({
               const filepath = path.join(dir, savedName);
 
               const body = await readBody(req);
-              fs.writeFileSync(filepath, body);
+              fs.writeFileSync(filepath, body as Buffer);
 
               const servePath = `/videoStore/${fileType === 'thumbnail' ? 'thumbnails' : 'videos'}/${savedName}`;
 
@@ -78,7 +79,7 @@ export default defineConfig({
             if (req.method === 'POST') {
               try {
                 const body = await readBody(req);
-                fs.writeFileSync(LIBRARY_FILE, body);
+                fs.writeFileSync(LIBRARY_FILE, body as Buffer);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ success: true }));
               } catch (err) {
@@ -93,7 +94,7 @@ export default defineConfig({
           // ─── Delete video files ────────────────────────────────────
           if (url === '/api/delete-video' && req.method === 'POST') {
             try {
-              const body = await readBody(req);
+              const body = await readBody(req) as Buffer;
               const { videoFilename, thumbFilename } = JSON.parse(body.toString());
 
               if (videoFilename) {

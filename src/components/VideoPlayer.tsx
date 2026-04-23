@@ -1,4 +1,3 @@
-import React from 'react';
 import type { Video } from '../hooks/useVideos';
 
 interface VideoPlayerProps {

@@ -1,6 +1,5 @@
-import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Play, LayoutDashboard, Film, Home } from 'lucide-react';
+import { Film, Home } from 'lucide-react';
 
 export function Navbar() {
   return (
